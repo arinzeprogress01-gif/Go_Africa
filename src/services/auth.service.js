@@ -47,7 +47,11 @@ export const requestOtp = async ({ phone: rawPhone, accountType, workerType }) =
 export const verifyOtp = async ({ phone: rawPhone, accountType, workerType, otp }) => {
   const phone = normalizePhone(rawPhone);
   if (!validAccountTypes.includes(accountType)) throw new ApiError(400, "Invalid accountType.");
-  if (typeof otp !== "string" || !/^\d{6}$/.test(otp)) throw new ApiError(400, `Enter the ${env.OTP_LENGTH}-digit OTP.`);
+  const otpPattern = new RegExp(`^\\d{${env.OTP_LENGTH}}$`);
+
+  if (typeof otp !== "string" || !otpPattern.test(otp)) {
+    throw new ApiError(400, `Enter the ${env.OTP_LENGTH}-digit OTP.`);
+  };
 
   const record = await otpRepository.findByPhone(phone);
   if (!record) throw new ApiError(400, "No active OTP found. Request a new code.");

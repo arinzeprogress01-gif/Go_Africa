@@ -2,32 +2,84 @@ import { env } from "../config/env.js";
 import { ApiError } from "../utils/api-error.js";
 
 export const sendOtpSms = async ({ to, otp }) => {
-  if (!env.TERMII_API_KEY || !env.TERMII_SENDER_ID) {
-    if (env.NODE_ENV !== "production" && env.OTP_DEV_RETURN_CODE) {
-      console.warn(`[DEV ONLY] OTP for ${to}: ${otp}`);
-      return { provider: "development" };
+  const message =
+    `Your GreenGig Africa verification code is ${otp}. ` +
+    `It expires in ${env.OTP_TTL_MINUTES} minutes. Do not share this code.`;
+
+  // Fast, free local/demo mode. No SMS provider is called.
+  if (env.OTP_PROVIDER === "development") {
+    if (env.NODE_ENV === "production") {
+      throw new ApiError(
+        503,
+        "Development OTP mode is disabled in production."
+      );
     }
-    throw new ApiError(503, "SMS service is not configured. Add Termii credentials.");
+
+    console.log(`[DEV OTP] ${to}: ${otp}`);
+    return { provider: "development" };
   }
 
-  const response = await fetch(`${env.TERMII_BASE_URL}/api/sms/send`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: env.TERMII_API_KEY,
-      to,
-      from: env.TERMII_SENDER_ID,
-      sms: `Your GreenGig Africa verification code is ${otp}. It expires in ${env.OTP_TTL_MINUTES} minutes. Do not share this code.`,
-      type: "plain",
-      channel: env.TERMII_CHANNEL
-    }),
-    signal: AbortSignal.timeout(15000)
+  if (env.OTP_PROVIDER !== "africastalking") {
+    throw new ApiError(500, "Unsupported OTP provider.");
+  }
+
+  if (!env.AT_API_KEY || !env.AT_USERNAME) {
+    throw new ApiError(503, "Africa's Talking credentials are not configured.");
+  }
+
+  const isSandbox = env.AT_ENV === "sandbox";
+  const endpoint = isSandbox
+    ? "https://api.sandbox.africastalking.com/version1/messaging"
+    : "https://api.africastalking.com/version1/messaging";
+
+  const form = new URLSearchParams({
+    username: env.AT_USERNAME,
+    to,
+    message
   });
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.code === "error") {
-    console.error("Termii send failed:", payload);
-    throw new ApiError(502, "We could not send your OTP SMS. Please try again.");
+  if (env.AT_SENDER_ID) {
+    form.set("from", env.AT_SENDER_ID);
   }
-  return { provider: "termii", messageId: payload.message_id || null };
+
+  let response;
+  let payload;
+
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        apiKey: env.AT_API_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: form,
+      signal: AbortSignal.timeout(15000)
+    });
+
+    payload = await response.json();
+  } catch (error) {
+    console.error("Africa's Talking request failed:", error.message);
+    throw new ApiError(502, "Could not connect to the SMS provider.");
+  }
+
+  if (!response.ok) {
+    console.error("Africa's Talking rejected the request:", payload);
+    throw new ApiError(502, "SMS provider rejected the OTP request.");
+  }
+
+  const recipient = payload?.SMSMessageData?.Recipients?.[0];
+  const statusCode = Number(recipient?.statusCode);
+
+  // AT reports per-recipient delivery acceptance in statusCode.
+  if (!recipient || (Number.isFinite(statusCode) && statusCode !== 101)) {
+    console.error("Africa's Talking SMS response:", payload);
+    throw new ApiError(502, "SMS provider did not accept the OTP message.");
+  }
+
+  return {
+    provider: "africastalking",
+    messageId: recipient.messageId || null,
+    status: recipient.status || "accepted"
+  };
 };
