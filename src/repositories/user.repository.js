@@ -28,6 +28,7 @@ export const userRepository = {
   async createOrUpdateVerifiedUser({ phone, accountType, workerType }) {
     const now = new Date();
 
+
     if (mongoose.connection.readyState === 1) {
       const Model =
         accountType === "organization" ? Organization : Worker;
@@ -45,7 +46,6 @@ export const userRepository = {
           ...(accountType === "organization"
             ? { verificationStatus: "pending" }
             : {
-              workerType: workerType || "job_seeker",
               isProfileComplete: false
             })
         }
@@ -62,6 +62,7 @@ export const userRepository = {
         }
       );
     }
+
 
     const bucket =
       accountType === "organization"
