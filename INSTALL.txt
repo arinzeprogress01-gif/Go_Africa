@@ -1,0 +1,47 @@
+GREEN GIG AFRICA - WORKER PROFILE ENDPOINT PATCH
+
+1. Copy src/services/profile.service.js and src/controllers/profile.controller.js
+   into the matching folders in the backend.
+
+2. In src/repositories/user.repository.js, add this method inside the exported
+   userRepository object (before its final closing brace):
+
+  async updateProfile({ phone, accountType, profile }) {
+    if (mongoose.connection.readyState === 1) {
+      const Model = accountType === "organization" ? Organization : Worker;
+      return Model.findOneAndUpdate(
+        { phone },
+        { $set: profile },
+        { new: true, runValidators: true }
+      );
+    }
+    const bucket = memory[accountType === "organization" ? "organizations" : "workers"];
+    const existing = bucket.get(phone);
+    if (!existing) return null;
+    const updated = { ...existing, ...profile, updatedAt: new Date() };
+    bucket.set(phone, updated);
+    return updated;
+  },
+
+3. In src/routes/auth.routes.js:
+   - Add this import:
+     import { setupWorkerProfile } from "../controllers/profile.controller.js";
+   - Add this route after the existing /me route:
+     router.post("/profile/setup", requireAuth, asyncHandler(setupWorkerProfile));
+
+4. Deploy the backend to Render.
+
+Endpoint:
+POST https://go-africa.onrender.com/api/v1/auth/profile/setup
+Authorization: Bearer <JWT from OTP verification>
+Content-Type: application/json
+
+Body:
+{
+  "fullName": "Test User",
+  "lga": "Alimosho",
+  "taskInterests": ["waste_collection", "tree_planting"]
+}
+
+Note: Worker model already has fullName, lga, taskInterests and isProfileComplete
+fields in the backend snapshot used to prepare this patch.

@@ -89,5 +89,22 @@ export const userRepository = {
 
     bucket.set(phone, updated);
     return updated;
-  }
+  },
+
+  async updateProfile({ phone, accountType, profile }) {
+    if (mongoose.connection.readyState === 1) {
+      const Model = accountType === "organization" ? Organization : Worker;
+      return Model.findOneAndUpdate(
+        { phone },
+        { $set: profile },
+        { new: true, runValidators: true }
+      );
+    }
+    const bucket = memory[accountType === "organization" ? "organizations" : "workers"];
+    const existing = bucket.get(phone);
+    if (!existing) return null;
+    const updated = { ...existing, ...profile, updatedAt: new Date() };
+    bucket.set(phone, updated);
+    return updated;
+  },
 };

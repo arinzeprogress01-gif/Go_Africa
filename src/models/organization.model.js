@@ -23,5 +23,6 @@ const organizationSchema = new mongoose.Schema({
   lastLoginAt: Date
 }, { timestamps: true });
 
-export const Organization = mongoose.models.Organization ||
+export const Organization =
+  mongoose.models.Organization ||
   mongoose.model("Organization", organizationSchema);

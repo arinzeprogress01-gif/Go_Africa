@@ -12,6 +12,8 @@ import {
   validateOtpVerification
 } from "../middleware/validate.middleware.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { setupWorkerProfile } from "../controllers/profile.controller.js";
+
 
 const router = Router();
 
@@ -68,5 +70,5 @@ router.post(
 );
 
 router.get("/me", requireAuth, asyncHandler(me));
-
+router.post("/profile/setup", requireAuth, asyncHandler(setupWorkerProfile));
 export default router;
