@@ -58,6 +58,11 @@ export const sendOtpSms = async ({ to, otp }) => {
     });
 
     payload = await response.json();
+
+    console.log(
+      "Africa's Talking SMS response:",
+      JSON.stringify(payload, null, 2)
+    );
   } catch (error) {
     console.error("Africa's Talking request failed:", error.message);
     throw new ApiError(502, "Could not connect to the SMS provider.");

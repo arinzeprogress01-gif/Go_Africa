@@ -8,6 +8,7 @@ import { notFound } from "./src/middleware/not-found.middleware.js";
 import { errorHandler } from "./src/middleware/error.middleware.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.disable("x-powered-by");
 app.use(helmet());
